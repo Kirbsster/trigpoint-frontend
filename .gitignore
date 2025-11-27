@@ -25,3 +25,7 @@ Thumbs.db
 .vscode/
 # SQLite DBs
 *.db
+
+# compiled reflex.dev
+.web
+.states
