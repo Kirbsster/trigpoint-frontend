@@ -1,0 +1,34 @@
+{
+    "_id": {
+        "$oid": "676400000000000000000020"
+    },
+    "user_id": {
+        "$oid": "675fa0aa3b1d8f00017c0001"
+    },
+    "bike_id": {
+        "$oid": "676400000000000000000001"
+    },
+    "preferred_variant_key": "M_std", // which variant to open by default
+    "last_variant_key": "M_std", // last used in the analyser (optional)
+    "default_view": "analyser", // "summary" | "analyser" | "linkage"
+    "units_override": {
+        "length": "mm",
+        "angle": "deg"
+    },
+    "overlay_options": {
+        "show_pivots": true,
+        "show_pivot_labels": true,
+        "show_grid": false,
+        "show_axle_path": true,
+        "show_chain_line": false
+    },
+    "solver_options": {
+        "travel_steps": 41,
+        "show_anti_squat": true,
+        "show_anti_rise": false,
+        "sag_percent": 30
+    },
+    "notes": "Use low mode for park days (will add as second variant later).",
+    "created_at": "2025-11-26T20:35:00.000Z",
+    "updated_at": "2025-11-26T21:10:00.000Z"
+}

@@ -1,0 +1,26 @@
+:root {
+    --bg: #ffffff;
+    --nav-bg: #ffffff;
+    --side-bg: #ffffff;
+    --accent: #00A0E6;
+    --text: #00A0E6;
+    --nav-text: #00A0E6;
+}
+
+/* Global body bg */
+body {
+    margin: 0;
+    background-color: var(--bg);
+}
+
+/* Full-page container */
+.page {
+    min-height: 100vh;
+    color: var(--nav-text);
+    background-color: var(--bg);
+}
+
+/* DEBUG LAYOUT MODE */
+* {
+    outline: 1px solid rgba(255, 0, 0, 0.4) !important;
+}

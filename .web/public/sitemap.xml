@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>http://localhost:3000/</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/login</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/register</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/auth/verify-email</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/forgot</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/reset</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/bikes</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/bikes/new</loc>
+  </url>
+  <url>
+    <loc>http://localhost:3000/sheds</loc>
+  </url>
+</urlset>
