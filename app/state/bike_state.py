@@ -2,10 +2,11 @@
 from typing import List, Dict
 import os
 import httpx
+import json
+
 import reflex as rx
-
-from app.state.auth_state import AuthState  # to reuse the token
-
+from app.state.auth_state import AuthState
+from app.state.page_state import PageState
 
 BACKEND_ORIGIN = os.getenv("BACKEND_ORIGIN", "http://127.0.0.1:9000")
 
@@ -16,18 +17,18 @@ class BikeState(rx.State):
     model_year: str = ""
     message: str = ""
     loading: bool = True
+
     bikes: List[Dict] = []
     has_bikes: bool = False
+
     current_bike: dict = {}
 
     # ---------- Create / save bike (with optional hero upload) ----------
-
     async def save_bike(self, files: list[rx.UploadFile]):
         """Create a bike, then optionally upload a hero image file."""
         self.loading = True
         self.message = ""
 
-        # get access token from AuthState's LocalStorage-backed value
         auth_state = await self.get_state(AuthState)
         token = auth_state.access_token
         if not token:
@@ -37,7 +38,6 @@ class BikeState(rx.State):
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        # ---- 1) Create the bike via POST /bikes ----
         payload = {
             "name": self.name,
             "brand": self.brand,
@@ -68,7 +68,6 @@ class BikeState(rx.State):
             self.message = detail or f"Failed to add bike (status {r.status_code})"
             return
 
-        # bike was created successfully
         bike_data = r.json()
         bike_id = bike_data.get("id")
         if not bike_id:
@@ -76,7 +75,7 @@ class BikeState(rx.State):
             self.message = "Bike created but response had no id."
             return
 
-        # ---- 2) If files were provided, upload the first as hero image ----
+        # ---- 2) Optional hero image upload ----
         if files:
             file0 = files[0]
             try:
@@ -90,11 +89,10 @@ class BikeState(rx.State):
                         files={"file": (filename, content, content_type)},
                     )
             except Exception as e:
-                # bike is created, but image upload failed
                 self.message = f"Bike added, but image upload failed: {e}"
                 self.loading = False
                 await self.load_bikes()
-                return rx.redirect("/bikes")
+                return await self.goto_bikes("Saving bike...")
 
             if not (200 <= resp.status_code < 300):
                 self.message = (
@@ -103,23 +101,22 @@ class BikeState(rx.State):
                 )
                 self.loading = False
                 await self.load_bikes()
-                return rx.redirect("/bikes")
+                return await self.goto_bikes("Saving bike...")
 
         # ---- 3) Success: reload list and go to /bikes ----
         self.message = "Bike and hero image added." if files else "Bike added."
         self.loading = False
         await self.load_bikes()
-        return rx.redirect("/bikes")
+        return await self.goto_bikes("Saving bike...")
 
     async def submit_bike(self):
         """Helper: create a bike without handling files."""
         return await self.save_bike([])
 
     # ---------- Load all bikes (list page) ----------
-
     async def load_bikes(self):
         self.loading = True
-        self.message = ""
+        self.message = ""   # clear old messages
 
         auth_state = await self.get_state(AuthState)
         token = auth_state.access_token
@@ -128,6 +125,7 @@ class BikeState(rx.State):
             return rx.redirect("/login")
 
         headers = {"Authorization": f"Bearer {token}"}
+
         async with httpx.AsyncClient(base_url=BACKEND_ORIGIN) as client:
             try:
                 r = await client.get("/bikes", headers=headers)
@@ -140,13 +138,10 @@ class BikeState(rx.State):
 
         if 200 <= r.status_code < 300:
             data = r.json() or []
-
-            # For each bike, ensure hero_url is present if backend only gave hero_media_id
             for b in data:
                 hero_id = b.get("hero_media_id")
                 if hero_id and not b.get("hero_url"):
                     b["hero_url"] = f"{BACKEND_ORIGIN}/media/{hero_id}"
-
             self.bikes = data
             self.has_bikes = len(data) > 0
         else:
@@ -159,9 +154,6 @@ class BikeState(rx.State):
             self.has_bikes = False
 
     # ---------- Load a single bike for the analyser ----------
-
-    current_bike: dict = {}
-
     @rx.event
     async def load_one_bike(self):
         """Load one bike using bike_id from the dynamic route."""
@@ -169,7 +161,6 @@ class BikeState(rx.State):
         self.message = ""
         self.current_bike = {}
 
-        # get bike_id from /bike-analyser/[bike_id]
         params = self.router.page.params or {}
         bike_id = params.get("bike_id")
         if isinstance(bike_id, list):
@@ -188,7 +179,6 @@ class BikeState(rx.State):
             return rx.redirect("/login")
 
         headers = {"Authorization": f"Bearer {token}"}
-
         try:
             async with httpx.AsyncClient(base_url=BACKEND_ORIGIN) as client:
                 r = await client.get(f"/bikes/{bike_id}", headers=headers)
@@ -200,27 +190,67 @@ class BikeState(rx.State):
 
         self.loading = False
 
-        # Try to parse JSON for debugging even on error
         try:
             data = r.json()
         except Exception:
             data = None
 
         if r.status_code == 200 and isinstance(data, dict):
-            # If backend only returns hero_media_id, synthesize hero_url here too.
             hero_id = data.get("hero_media_id")
             if hero_id and not data.get("hero_url"):
                 data["hero_url"] = f"{BACKEND_ORIGIN}/media/{hero_id}"
             self.current_bike = data
-
-            # Optional: keep a human-readable message too
-            self.message = f"Loaded bike {data.get('id')} (hero_url={data.get('hero_url')!r})"
+            # if you *don't* want this visible on other pages, we can also drop this:
+            self.message = ""
         else:
-            detail = None
-            if isinstance(data, dict):
-                detail = data.get("detail")
+            detail = data.get("detail") if isinstance(data, dict) else None
             self.message = (
                 detail
                 or f"Failed to load bike {bike_id!r} (status {r.status_code})"
             )
             self.current_bike = {}
+
+
+    @rx.event
+    async def goto_bikes(self):
+        """Global nav → /bikes with loader shown immediately."""
+        page = await self.get_state(PageState)
+        page.loading = True
+        page.loading_message = "Loading your bikes..."
+
+        # Optional: clear stale status
+        self.message = ""
+
+        return rx.redirect("/bikes")
+
+    @rx.event
+    async def goto_bike(self, bike_id: str):
+        """Global nav → /bike_analyser/[bike_id] with loader."""
+        page = await self.get_state(PageState)
+        page.loading = True
+        page.loading_message = "Loading bike..."
+
+        # Avoid flashing an old bike + message
+        self.current_bike = {}
+        self.message = ""
+
+        return rx.redirect(f"/bike_analyser/{bike_id}")
+    
+
+
+    def init_viewer_js(self):
+        """Called from page on_load, after load_one_bike."""
+        if not self.current_bike:
+            return
+
+        # Later you can add points/links here if they’re stored on the bike:
+        initial_data = {
+            "points": self.current_bike.get("points", {}),
+            "links": self.current_bike.get("links", []),
+        }
+
+        return rx.call_script(
+            f"window.initBikePointsViewer("
+            f"'bike-viewer-container', {json.dumps(initial_data)}"
+            f");"
+        )

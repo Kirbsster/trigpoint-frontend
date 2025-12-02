@@ -8,7 +8,6 @@ def app_template(content: rx.Component) -> rx.Component:
         # LEFT COLUMN (navbar + content) + script hidden in here
         rx.box(
             rx.fragment(
-                # rx.script(src='/js/pointer_tracker.js'),  # not a flex child now
                 rx.vstack(
                     navbar(),
                     rx.box(

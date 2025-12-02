@@ -70,7 +70,7 @@ def bikes_page() -> rx.Component:
                     row_with_image,
                     row_without_image,
                 ),
-                on_click=lambda: PageState.goto(f"/bike_analyser/{bike['id']}",""),
+                on_click=BikeState.goto_bike(bike["id"]),
             ),
             width="100%",
         )
@@ -82,7 +82,7 @@ def bikes_page() -> rx.Component:
             rx.spacer(),
             rx.button(
                 "+ Add bike",
-                on_click=lambda: PageState.goto("/bikes/new",""),
+                # on_click=BikeState.goto_bike(bike["id"]),
             ),
             align_items="center",
             width="100%",

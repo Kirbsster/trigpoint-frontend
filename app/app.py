@@ -13,6 +13,7 @@ import app.pages.bikes
 import app.pages.bike_new
 import app.pages.bike_analyser
 import app.pages.sheds
+import app.pages.shed
 
 app = rx.App(
     stylesheets=["/theme.css"],      # served from assets/theme.css
