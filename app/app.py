@@ -10,7 +10,6 @@ import app.pages.verify
 import app.pages.forgot
 import app.pages.reset
 import app.pages.bikes
-import app.pages.bike_new
 import app.pages.bike_analyser
 import app.pages.sheds
 import app.pages.shed

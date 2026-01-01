@@ -3,7 +3,20 @@
     --nav-bg: #ffffff;
     --side-bg: #ffffff;
     --accent: #00A0E6;
-    --text: #00A0E6;
+    --accent-10: color-mix(in srgb, var(--accent) 10%, transparent);
+    --accent-20: color-mix(in srgb, var(--accent) 20%, transparent);
+    --accent-50: color-mix(in srgb, var(--accent) 50%, transparent);
+    --accent-60: color-mix(in srgb, var(--accent) 60%, transparent);
+    --accent-70: color-mix(in srgb, var(--accent) 70%, transparent);
+    --accent-80: color-mix(in srgb, var(--accent) 80%, transparent);
+    --accent-90: color-mix(in srgb, var(--accent) 90%, transparent);
+    --accent-select: #fb5527;
+    --select-dark: #4a4a4a;
+    --select-dark-50: color-mix(in srgb, var(--select-dark) 50%, transparent);
+    --heading1: #00A0E6;
+    --text: #4a4a4a;
+    --text-dark: #4a4a4a;
+    --text-light: #ffffff;
     --nav-text: #00A0E6;
 }
 
@@ -21,6 +34,6 @@ body {
 }
 
 /* DEBUG LAYOUT MODE */
-* {
+/* * {
     outline: 1px solid rgba(255, 0, 0, 0.4) !important;
-}
+} */

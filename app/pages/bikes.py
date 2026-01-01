@@ -9,8 +9,9 @@ from app.state.auth_state import AuthState
 from app.state.page_state import PageState
 from app.state.bike_state import BikeState
 
-BACKEND_ORIGIN = os.getenv("BACKEND_ORIGIN", "http://127.0.0.1:9000")
+from app.components.new_bike_modal import new_bike_modal
 
+BACKEND_ORIGIN = os.getenv("BACKEND_ORIGIN", "http://127.0.0.1:9000")
 
 @rx.page(
     route="/bikes",
@@ -22,10 +23,8 @@ BACKEND_ORIGIN = os.getenv("BACKEND_ORIGIN", "http://127.0.0.1:9000")
         ],
 )
 def bikes_page() -> rx.Component:
-    def bike_card(bike: dict) -> rx.Component:
-        """Render a single bike card with optional hero image."""
 
-        # --- Text details (always shown) ---
+    def bike_card(bike: dict) -> rx.Component:
         details = rx.vstack(
             rx.heading(bike.get("name", "Untitled"), size="4"),
             rx.text(bike.get("brand", ""), size="3"),
@@ -42,11 +41,8 @@ def bikes_page() -> rx.Component:
             width="100%",
         )
 
-        # --- Row when an image is present (image left, details right) ---
         row_with_image = rx.hstack(
             rx.image(
-                # hero_url may come either from backend (signed URL)
-                # or be constructed in BikeState.load_bikes as a /media/{id} URL.
                 src=bike.get("hero_url", ""),
                 width="140px",
                 height="140px",
@@ -59,34 +55,58 @@ def bikes_page() -> rx.Component:
             width="100%",
         )
 
-        # --- Row when no image: just details ---
-        row_without_image = details
+        content = rx.cond(
+            bike.get("hero_url") != None,
+            row_with_image,
+            details,
+        )
 
-        # Note: use Var-aware condition; truthiness of hero_url is enough.
         return rx.card(
-            rx.link(
-                rx.cond(
-                    bike.get("hero_url") != None,
-                    row_with_image,
-                    row_without_image,
+            rx.hstack(
+                # Clickable area -> go to analyser
+                rx.box(
+                    content,
+                    on_click=BikeState.goto_bike(bike["id"]),
+                    width="100%",
+                    cursor="pointer",
                 ),
-                on_click=BikeState.goto_bike(bike["id"]),
+
+                # Delete icon (not inside clickable box)
+                rx.icon_button(
+                    "trash-2",
+                    variant="ghost",
+                    on_click=BikeState.delete_bike(bike["id"]),
+                ),
+
+                align_items="start",
+                width="100%",
+                spacing="2",
             ),
             width="100%",
         )
 
     body = rx.vstack(
         # Header row with title + add button
+        # rx.hstack(
+        #     rx.heading("My bikes", size="6"),
+        #     rx.spacer(),
+        #     rx.button(
+        #         "+ Add bike",
+        #         on_click=rx.redirect("/bikes/new"),
+        #     ),
+        #     align_items="center",
+        #     width="100%",
+        # ),
+
+        # inside bikes_page() header row:
         rx.hstack(
             rx.heading("My bikes", size="6"),
             rx.spacer(),
-            rx.button(
-                "+ Add bike",
-                # on_click=BikeState.goto_bike(bike["id"]),
-            ),
+            new_bike_modal(),
             align_items="center",
             width="100%",
         ),
+
         # Body: loading → list → empty state
         rx.cond(
             BikeState.loading,

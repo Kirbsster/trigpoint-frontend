@@ -1,7 +1,7 @@
 # frontend/components/sidebar.py
 import reflex as rx
 from app.state.auth_state import AuthState
-from app.state.sidebar_state import SidebarState
+from frontend.app.state.legacy.sidebar_state import SidebarState
 
 
 def sidebar() -> rx.Component:

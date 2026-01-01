@@ -1,7 +1,6 @@
 # frontend/layout.py
 import reflex as rx
 from app.components.navbar import navbar
-from app.components.sidebar import sidebar
 
 def app_template(content: rx.Component) -> rx.Component:
     return rx.hstack(
@@ -27,10 +26,6 @@ def app_template(content: rx.Component) -> rx.Component:
             height="100vh",
         ),
 
-        # RIGHT SIDEBAR
-        # sidebar(),
-
-        
         height="100vh",
         spacing="0",
         class_name="page",

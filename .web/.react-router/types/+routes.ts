@@ -27,9 +27,6 @@ type Pages = {
       "shed_id": string;
     };
   };
-  "/bikes/new": {
-    params: {};
-  };
   "/register": {
     params: {};
   };
@@ -58,7 +55,7 @@ type Pages = {
 type RouteFiles = {
   "root.jsx": {
     id: "root";
-    page: "/" | "/bike_analyser/:bike_id" | "/auth/verify-email" | "/sheds/:shed_id" | "/bikes/new" | "/register" | "/forgot" | "/bikes" | "/login" | "/reset" | "/sheds" | "/*";
+    page: "/" | "/bike_analyser/:bike_id" | "/auth/verify-email" | "/sheds/:shed_id" | "/register" | "/forgot" | "/bikes" | "/login" | "/reset" | "/sheds" | "/*";
   };
   "routes/[bike_analyser].$[bike_id]._index.jsx": {
     id: "routes/[bike_analyser].$[bike_id]._index";
@@ -71,10 +68,6 @@ type RouteFiles = {
   "routes/[sheds].$[shed_id]._index.jsx": {
     id: "routes/[sheds].$[shed_id]._index";
     page: "/sheds/:shed_id";
-  };
-  "routes/[bikes].[new]._index.jsx": {
-    id: "routes/[bikes].[new]._index";
-    page: "/bikes/new";
   };
   "routes/[register]._index.jsx": {
     id: "routes/[register]._index";
@@ -115,7 +108,6 @@ type RouteModules = {
   "routes/[bike_analyser].$[bike_id]._index": typeof import("./app/routes/[bike_analyser].$[bike_id]._index.jsx");
   "routes/[auth].[verify-email]._index": typeof import("./app/routes/[auth].[verify-email]._index.jsx");
   "routes/[sheds].$[shed_id]._index": typeof import("./app/routes/[sheds].$[shed_id]._index.jsx");
-  "routes/[bikes].[new]._index": typeof import("./app/routes/[bikes].[new]._index.jsx");
   "routes/[register]._index": typeof import("./app/routes/[register]._index.jsx");
   "routes/[forgot]._index": typeof import("./app/routes/[forgot]._index.jsx");
   "routes/[bikes]._index": typeof import("./app/routes/[bikes]._index.jsx");

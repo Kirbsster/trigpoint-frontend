@@ -22,9 +22,6 @@
     <loc>http://localhost:3000/bikes</loc>
   </url>
   <url>
-    <loc>http://localhost:3000/bikes/new</loc>
-  </url>
-  <url>
     <loc>http://localhost:3000/sheds</loc>
   </url>
 </urlset>
