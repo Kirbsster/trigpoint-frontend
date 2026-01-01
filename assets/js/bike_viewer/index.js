@@ -4,6 +4,15 @@ import "./dom.js";
 import "./theme.js";
 import "./ui_buttons.js";
 import "./api.js";
+import "./draw.js";
+import "./hit_test.js";
+import "./events_pointer.js";
+import "./events_keyboard.js";
+import "./view.js";
+import "./actions.js";
+import "./io_backend.js";
+import "./state.js";
+import "./measurements.js";
 import { initBikePointsViewer } from "./viewer.js";
 
 (() => {
