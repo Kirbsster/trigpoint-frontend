@@ -358,9 +358,7 @@ export function initBikePointsViewer(container, config = {}) {
         invalidate,
         setDebug,
         shockStrokeInput,
-        setLastValidShockStroke: (value) => {
-            lastValidShockStroke = value;
-        },
+        setLastValidShockStroke,
     });
     const { loadInitialPoints, loadBodies, saveBodiesHelper, savePoints } = backendIO;
 

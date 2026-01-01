@@ -574,6 +574,14 @@ export function createMeasurements(deps) {
             dom.shaft.style.height = `${layout.shaft.h}px`;
             dom.shaft.style.background = color;
 
+            dom.applyHeadStyles(
+                dom.leftHead,
+                dom.rightHead,
+                color,
+                layout.leftHead.w,
+                layout.leftHead.h
+            );
+
             dom.leftHead.style.left = `${layout.leftHead.x}px`;
             dom.leftHead.style.top = `${layout.leftHead.y}px`;
 

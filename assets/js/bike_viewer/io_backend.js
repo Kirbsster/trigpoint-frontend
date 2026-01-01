@@ -162,6 +162,8 @@ export function createBackendIO(deps) {
                 point_ids: Array.isArray(b.point_ids) ? b.point_ids.slice() : [],
                 closed: !!b.closed,
                 type: b.type || null,
+                length0: typeof b.length0 === "number" ? b.length0 : null,
+                stroke: typeof b.stroke === "number" ? b.stroke : null,
             })),
         };
 
