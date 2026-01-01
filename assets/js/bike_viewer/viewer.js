@@ -9,27 +9,25 @@ export function initBikePointsViewer(container, config = {}) {
         return;
     }
 
-    // 🔒 Single source of truth
     const viewer = (containerEl.bikeViewer ??= {});
     viewer.config = config;
 
-    // IMPORTANT: call this after you’ve resolved bikeId (from dataset/url)
     const bikeId = containerEl.dataset.bikeId || null;
 
-    // Initialise expected state ON THE CONTAINER
     viewer.scale_mm_per_px ??= null;
     viewer.activeScaleMeasurementId ??= null;
     viewer.measurementValues ??= {};
     viewer.points ??= [];
     viewer.bodies ??= [];
 
-    // Keep a local alias for readability
     const BV = window.BikeViewer;
     const { makeDefaultState, getState } = BV;
 
     const state = getState(viewer, bikeId);
 
     let __bv_needs_draw = false;
+    // Coalesce redraws into a single animation frame.
+    // Schedule a render pass and optional debug message.
     function invalidate(msg) {
         if (msg) setDebug(msg);
         if (__bv_needs_draw) return;
@@ -40,12 +38,9 @@ export function initBikePointsViewer(container, config = {}) {
         });
     }
 
-    // Local aliases so the rest of the file stays unchanged
     const log = (...args) => BV.log(...args);
     const setDebug = (text) => BV.setDebug(containerEl, text);
     const cssVar = (name) => BV.cssVar(name);
-    // const qs = (sel, root) => BV.qs(sel, root);
-    // const qsa = (sel, root) => BV.qsa(sel, root);
     const inner = containerEl.querySelector("#bike-viewer-inner") || containerEl;
     const img = inner.querySelector("img");
 
@@ -54,7 +49,7 @@ export function initBikePointsViewer(container, config = {}) {
         return;
     }
 
-    // === Canvas overlay (draws the image + points) ===
+    // Canvas overlay for draw layers and pointer hit tests.
     const canvas = document.createElement("canvas");
     canvas.style.position = "absolute";
     canvas.style.inset = "0";
@@ -63,7 +58,6 @@ export function initBikePointsViewer(container, config = {}) {
     inner.appendChild(canvas);
     const ctx = canvas.getContext("2d");
 
-    // Fallback: parse from URL /bike_analyser/<id>
     if (!bikeId && window.location && window.location.pathname) {
         const m = window.location.pathname.match(/bike_analyser\/([^/]+)/);
         if (m && m[1]) {
@@ -74,37 +68,15 @@ export function initBikePointsViewer(container, config = {}) {
 
     const accessToken = containerEl.dataset.accessToken || null;
 
-    // Log once so we can see what we actually have
     console.log("[BikeViewer] bikeId from dataset/URL:", bikeId);
-
-    // --- Geometry state ---
 
     const recomputeNextIdFromPoints = () => BV.recomputeNextIdFromPoints(state);
 
-    // NEW: bodies as per backend schema
-    // each body: { id, name, point_ids: [ "pt_1", "pt_2", ... ], closed: bool }
-    // state.bars: [{ id, a, b }]
     const rebuildBarsFromBodies = () => BV.rebuildBarsFromBodies(state);
-
-
-    // ---- Measurement system (v1: rear_center only) ----
-    const meas = {
-        show: true,
-        activeScaleKey: null,     // "rear_center" later "wheelbase" etc.
-    };
 
     const getPtsByType = () => BV.getPtsByType(state.points);
 
-
-    // let rearMeasureAnim = {
-    //     running: false,
-    //     startTime: 0,
-    //     fromX: 0,
-    //     toX: 0,
-    //     duration: 220,   // ms
-    // };
-
-
+    // Measurement system wires into render and geometry updates.
     const measurements = BV.createMeasurements({
         BV,
         viewer,
@@ -139,24 +111,14 @@ export function initBikePointsViewer(container, config = {}) {
     });
     const { shockStrokeInput, setLastValidShockStroke } = shockUi;
 
-    // function imageDxDyToMm(dxImg, dyImg) {
-    //     const s = viewer?.scale_mm_per_px;
-    //     if (!s) return null;
-    //     const dPx = Math.hypot(dxImg, dyImg);
-    //     return dPx * s;  // mm
-    // }
-
-    // Crosshair state: stored in canvas CSS coords
     let crosshair = {
         x: null,
         y: null,
         visible: false,
     };
-    // Image intrinsic size
     let imgW = 0;
     let imgH = 0;
 
-    // --- Debug HUD ---
     const debug = document.createElement("div");
     debug.style.position = "absolute";
     debug.style.left = "8px";
@@ -178,13 +140,13 @@ export function initBikePointsViewer(container, config = {}) {
         BV.updateLinkButtonHighlight(state.connectMode, state.activeLinkType);
     }
 
-    // === Geometry helpers ===
+    // View transform shared by draw and input.
     const view = {
         scale: 1,
         tx: 0,
         ty: 0,
-        minScale: 1, // fit-to-canvas zoom
-        baseTx: 0,   // centred translation at minScale
+        minScale: 1,
+        baseTx: 0,
         baseTy: 0,
     };
     const viewHelpers = BV.createViewHelpers({
@@ -202,6 +164,7 @@ export function initBikePointsViewer(container, config = {}) {
         zoomAtImageCenter,
     } = viewHelpers;
 
+    // Resize canvas to container and re-fit view if image is loaded.
     function resizeCanvas() {
         const rect = inner.getBoundingClientRect();
         const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -211,7 +174,6 @@ export function initBikePointsViewer(container, config = {}) {
         canvas.style.width = rect.width + "px";
         canvas.style.height = rect.height + "px";
 
-        // Keep current view if we already have one; otherwise fit-once in resetView.
         if (imgW && imgH) {
             resetView();
         } else {
@@ -219,10 +181,10 @@ export function initBikePointsViewer(container, config = {}) {
         }
     }
 
-    // After you’ve defined `bars` and `points` somewhere above invalidate
     const findShockBody = () => BV.findShockBody(state.bodies);
     const findShockBar = () => BV.findShockBar(state.bodies, state.bars);
 
+    // Actions mutate state and invalidate the render loop.
     const actions = BV.createActions({
         state,
         clientToImage,
@@ -232,9 +194,9 @@ export function initBikePointsViewer(container, config = {}) {
     });
     const { drawDotAtClient, nudgeSelectedPoint } = actions;
 
-    // === Nudge controls around selected point (donut with arrows) ===
-    const NUDGE_INNER_RADIUS = 32; // px on screen
-    const NUDGE_OUTER_RADIUS = 70; // px on screen
+    const NUDGE_INNER_RADIUS = 32;
+    const NUDGE_OUTER_RADIUS = 70;
+    // Hydrate measurement values and scale from backend geometry payload.
     function loadGeometryFromBikeDoc(bikeDoc) {
         const g = bikeDoc?.geometry || {};
 
@@ -250,10 +212,10 @@ export function initBikePointsViewer(container, config = {}) {
         if (typeof g.wheelbase_mm === "number") measurementValues.wheelbase = g.wheelbase_mm;
         if (typeof g.front_center_mm === "number") measurementValues.front_center = g.front_center_mm;
 
-        // don’t call invalidate here if you’re going to do it at end of loadInitialPoints
     }
 
 
+    // Position shock stroke pill based on current points and view.
     const updateShockStrokePill = (pointById) => BV.updateShockStrokePill({
         pointById,
         findShockBar,
@@ -264,6 +226,7 @@ export function initBikePointsViewer(container, config = {}) {
         setDebug,
     });
 
+    // Render all draw layers and overlays.
     function drawAll() {
         BV.renderBikeViewer(state, {
             ctx,
@@ -290,8 +253,8 @@ export function initBikePointsViewer(container, config = {}) {
         });
     }
 
+    // Fire-and-forget point autosave if the viewer hook exists.
     function saveNowIfPossible() {
-        // autosave to backend (fire-and-forget)
         try {
             if (
                 viewer &&
@@ -306,6 +269,7 @@ export function initBikePointsViewer(container, config = {}) {
 
     const recomputeNextBodyIdFromBodies = () => BV.recomputeNextBodyIdFromBodies(state);
 
+    // End link-chain mode and save bodies when appropriate.
     function finalizeConnectChainAndSave() {
         const action = BV.finalizeConnectChain(state);
         if (action === "empty") {
@@ -319,11 +283,11 @@ export function initBikePointsViewer(container, config = {}) {
         }
 
         if (action === "create") {
-            // Use the same logic as everywhere else:
             createBodyFromChain(state.activeLinkType);
         }
     }
 
+    // Build a body from the current connect chain and persist it.
     function createBodyFromChain(linkType) {
         const body = BV.createBodyFromChain(state, linkType);
         if (!body) return;
@@ -342,7 +306,6 @@ export function initBikePointsViewer(container, config = {}) {
         }
     }
 
-    // === Pointer handlers ===
     const backendIO = BV.createBackendIO({
         BV,
         viewer,
@@ -362,6 +325,7 @@ export function initBikePointsViewer(container, config = {}) {
     });
     const { loadInitialPoints, loadBodies, saveBodiesHelper, savePoints } = backendIO;
 
+    // Wire input handlers after dependencies are ready.
     BV.addPointerEvents({
         canvas,
         state,
@@ -392,20 +356,16 @@ export function initBikePointsViewer(container, config = {}) {
         invalidate,
     });
 
-    // === Image load & bootstrapping ===
+    // Initialize view, then load points/bodies once the image is ready.
     function onImageReady() {
         imgW = img.naturalWidth;
         imgH = img.naturalHeight;
 
-        // We only need the image as a source for drawImage; hide the DOM copy
         img.style.display = "none";
-
-        // setDebug(`Image ready. natural=${imgW}×${imgH}`);
 
         resizeCanvas();
         invalidate(`Image ready. natural=${imgW}×${imgH}`);
 
-        // Load points from backend once image/view are ready{
         loadInitialPoints();
         loadBodies();
     }
@@ -418,8 +378,6 @@ export function initBikePointsViewer(container, config = {}) {
 
     window.addEventListener("resize", resizeCanvas);
 
-    // === Public API for Reflex hooks ===
-    // viewer = {
     Object.assign(viewer, {
         ping() {
             setDebug("bikeViewer.ping() called from console");
@@ -428,10 +386,8 @@ export function initBikePointsViewer(container, config = {}) {
             const newType = type ? String(type) : null;
             const opts = options || {};
 
-            // --- If we were in link mode, finalise/discard chain and turn it off ---
             if (state.connectMode) {
                 if (state.connectChain.length >= 2) {
-                    // OLD inline body creation here
                     createBodyFromChain(state.activeLinkType);
                 } else if (state.connectChain.length > 0) {
                     state.connectChain = [];
@@ -448,7 +404,6 @@ export function initBikePointsViewer(container, config = {}) {
                 updateLinkButtonHighlight();
             }
 
-            // --- Toggle behaviour: click same type again => cancel placement ---
             if (state.activeType === newType) {
                 state.activeType = null;
                 if (typeof crosshair !== "undefined") {
@@ -461,7 +416,6 @@ export function initBikePointsViewer(container, config = {}) {
                 return;
             }
 
-            // --- Switch to a new point type ---
             state.activeType = newType;
             if (typeof crosshair !== "undefined") {
                 crosshair.visible = !!state.activeType;
@@ -479,12 +433,10 @@ export function initBikePointsViewer(container, config = {}) {
             resetView();
         },
 
-        // --- NEW: link-type tool (rigid / shock) ---
         setLinkType(type, options) {
             const newType = type ? String(type) : null;
             const opts = options || {};
 
-            // If we were in point-placement mode, turn that off
             if (state.activeType) {
                 state.activeType = null;
                 if (typeof crosshair !== "undefined") {
@@ -495,9 +447,7 @@ export function initBikePointsViewer(container, config = {}) {
                 updateTypeButtonHighlight();
             }
 
-            // If we’re already in link mode…
             if (state.connectMode) {
-                // Clicking the same link type again => toggle OFF (commit/discard chain)
                 if (state.activeLinkType === newType) {
                     if (state.connectChain.length >= 2) {
                         createBodyFromChain(state.activeLinkType);
@@ -517,7 +467,6 @@ export function initBikePointsViewer(container, config = {}) {
                     return;
                 }
 
-                // Switching from one link type to another while link mode is ON
                 if (state.connectChain.length >= 2) {
                     createBodyFromChain(state.activeLinkType);
                 } else if (state.connectChain.length > 0) {
@@ -535,7 +484,6 @@ export function initBikePointsViewer(container, config = {}) {
                 return;
             }
 
-            // Not in link mode yet, and user clicked a link tool
             if (newType) {
                 state.connectMode = true;
                 state.activeLinkType = newType;
@@ -548,7 +496,6 @@ export function initBikePointsViewer(container, config = {}) {
                 return;
             }
 
-            // newType is null => explicit OFF
             if (state.connectChain.length >= 2) {
                 createBodyFromChain(state.activeLinkType);
             } else if (state.connectChain.length > 0) {
@@ -566,12 +513,10 @@ export function initBikePointsViewer(container, config = {}) {
             setDebug("Link mode: OFF");
         },
 
-        // Optionally keep a simple toggle for legacy use:
         setConnectMode(on) {
             const newMode = !!on;
 
             if (!newMode) {
-                // turning OFF
                 if (state.connectChain.length >= 2) {
                     createBodyFromChain(state.activeLinkType);
                 } else if (state.connectChain.length > 0) {
@@ -587,7 +532,6 @@ export function initBikePointsViewer(container, config = {}) {
                 return;
             }
 
-            // turning ON (if no activeLinkType, default to "bar")
             if (!state.activeLinkType) {
                 state.activeLinkType = "bar";
             }
@@ -598,7 +542,6 @@ export function initBikePointsViewer(container, config = {}) {
             setDebug("Link mode: ON (" + state.activeLinkType + ")");
         },
 
-        // ---- backend sync helpers ----
         getPoints() {
             return state.points.map((p) => ({
                 id: p.id,
@@ -610,7 +553,7 @@ export function initBikePointsViewer(container, config = {}) {
         },
 
         setPoints(newPoints) {
-            const pts = state.points;     // or viewer.state.points
+            const pts = state.points;
             pts.length = 0;
 
             let maxIdNum = 0;
@@ -636,7 +579,6 @@ export function initBikePointsViewer(container, config = {}) {
             invalidate(`Loaded ${pts.length} point(s) from backend`);
         },
 
-        // NEW: bars
         getBars() {
             return state.bars.map((b) => ({ id: b.id, a: b.a, b: b.b }));
         },
@@ -655,7 +597,7 @@ export function initBikePointsViewer(container, config = {}) {
                 name: b.name ?? null,
                 point_ids: Array.isArray(b.point_ids) ? b.point_ids.slice() : [],
                 closed: !!b.closed,
-                type: b.type || null,   // <-- NEW
+                type: b.type || null,
             }));
         },
 
@@ -665,7 +607,7 @@ export function initBikePointsViewer(container, config = {}) {
                 name: b.name ?? null,
                 point_ids: Array.isArray(b.point_ids) ? b.point_ids.slice() : [],
                 closed: !!b.closed,
-                type: b.type || null,   // <-- NEW
+                type: b.type || null,
             }));
             rebuildBarsFromBodies();
             invalidate(`Loaded ${state.bodies.length} body(s)`);
