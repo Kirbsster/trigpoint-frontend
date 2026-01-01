@@ -63,7 +63,7 @@ export function render(state, deps) {
             view,
             points: state.points,
             cssVar,
-            defs: measurement.MEASURE_DEFS,
+            defs: measurement.measureDefs,
             domMap: measurement.measurementDom,
             activeScaleId: measurement.activeScaleMeasurementId,
             valuesById: measurement.measurementValues,

@@ -1,4 +1,84 @@
 // measurements.js
+const DEFAULT_MEASURE_DEFS = {
+    rear_center: {
+        id: "rear_center",
+        label: "Rear Center",
+        units: "mm",
+        type: "input",
+        scaleCandidate: true,
+        anchors: { aType: "bb", bType: "rear_axle" },
+        place: {
+            orientation: "horizontal",
+            normalOffsetPx: -50,
+            pillOffsetPx: 25,
+        },
+        style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 20 },
+        ticks: {
+            enabled: true,
+            // which end(s) get ticks
+            ends: "both",            // "both" | "a" | "b" | "none"
+            // tick direction relative to the measurement line (root-space +Y is "normal")
+            side: "both",            // "both" | "pos" | "neg"
+            lengthPosPx: 25,         // length toward +normal
+            lengthNegPx: 50,         // length toward -normal
+            thicknessPx: 3,
+            offsetPx: 0,             // shifts the tick center along normal (rarely needed)
+        },
+    },
+
+    front_center: {
+        id: "front_center",
+        label: "Front Center",
+        units: "mm",
+        type: "input",
+        scaleCandidate: true,
+        anchors: { aType: "bb", bType: "front_axle" },
+        place: {
+            orientation: "horizontal",
+            normalOffsetPx: 50,
+            pillOffsetPx: -25,
+        },
+        style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 20 },
+        ticks: {
+            enabled: true,
+            // which end(s) get ticks
+            ends: "both",            // "both" | "a" | "b" | "none"
+            // tick direction relative to the measurement line (root-space +Y is "normal")
+            side: "both",            // "both" | "pos" | "neg"
+            lengthPosPx: 50,         // length toward +normal
+            lengthNegPx: 25,         // length toward -normal
+            thicknessPx: 3,
+            offsetPx: 0,             // shifts the tick center along normal (rarely needed)
+        },
+    },
+
+    wheelbase: {
+        id: "wheelbase",
+        label: "Wheelbase",
+        units: "mm",
+        type: "input",
+        scaleCandidate: true,
+        anchors: { aType: "rear_axle", bType: "front_axle" },
+        place: {
+            orientation: "horizontal",   // wheelbase is usually horizontal span
+            normalOffsetPx: 125,         // push it further away so it does not clash with RC
+            pillOffsetPx: -25,
+        },
+        style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 40 },
+        ticks: {
+            enabled: true,
+            // which end(s) get ticks
+            ends: "both",            // "both" | "a" | "b" | "none"
+            // tick direction relative to the measurement line (root-space +Y is "normal")
+            side: "both",            // "both" | "pos" | "neg"
+            lengthPosPx: 100,        // length toward +normal
+            lengthNegPx: 100,        // length toward -normal
+            thicknessPx: 3,
+            offsetPx: 50,            // shifts the tick center along normal (rarely needed)
+        },
+    },
+};
+
 export function createMeasurements(deps) {
     const {
         BV,
@@ -13,7 +93,7 @@ export function createMeasurements(deps) {
         drawAll,
     } = deps;
 
-    const { MEASURE_DEFS } = deps;
+    const measureDefs = deps.measureDefs || DEFAULT_MEASURE_DEFS;
 
     const measurementDom = {};
     let activeScaleMeasurementId = "rear_center";
@@ -35,7 +115,7 @@ export function createMeasurements(deps) {
     }
 
     function setScaleFromMeasurement(measId, mmValue) {
-        const def = MEASURE_DEFS?.[measId];
+        const def = measureDefs?.[measId];
         if (!def || !def.anchors) return null;
 
         const pts = getPtsByType();
@@ -84,10 +164,10 @@ export function createMeasurements(deps) {
 
         const pts = getPtsByType();
 
-        for (const id in MEASURE_DEFS) {
+        for (const id in measureDefs) {
             if (id === activeScaleMeasurementId) continue;
 
-            const def = MEASURE_DEFS[id];
+            const def = measureDefs[id];
             if (!def?.anchors) continue;
 
             const dom = measurementDom?.[id];
@@ -126,8 +206,8 @@ export function createMeasurements(deps) {
             return Math.hypot(b.x - a.x, b.y - a.y);
         };
 
-        for (const id in MEASURE_DEFS) {
-            const def = MEASURE_DEFS[id];
+        for (const id in measureDefs) {
+            const def = measureDefs[id];
             const a = pts?.[def.anchors?.aType];
             const b = pts?.[def.anchors?.bType];
             const dPx = distPx(a, b, def.place?.orientation || "point_to_point");
@@ -308,7 +388,7 @@ export function createMeasurements(deps) {
 
         pill.addEventListener("focus", () => {
             const measureId = getMeasureId();
-            const def = MEASURE_DEFS?.[measureId];
+        const def = measureDefs?.[measureId];
             if (!def) return;
             if (!def.scaleCandidate) return;
             setActive(true);
@@ -317,7 +397,7 @@ export function createMeasurements(deps) {
         pill.addEventListener("blur", async (e) => {
             const measureId = getMeasureId();
             if (!measureId) return;
-            const def = MEASURE_DEFS?.[measureId];
+        const def = measureDefs?.[measureId];
             if (!def) return;
             if (!def.scaleCandidate) return;
 
@@ -535,7 +615,7 @@ export function createMeasurements(deps) {
     }
 
     return {
-        MEASURE_DEFS,
+        measureDefs,
         measurementDom,
         measurementValues,
         getActiveScaleMeasurementId,
@@ -552,3 +632,4 @@ export function createMeasurements(deps) {
 
 const BV = (window.BikeViewer ||= {});
 BV.createMeasurements = createMeasurements;
+BV.MEASURE_DEFS = DEFAULT_MEASURE_DEFS;

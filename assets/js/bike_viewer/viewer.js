@@ -84,36 +84,7 @@ export function initBikePointsViewer(container, config = {}) {
     // NEW: bodies as per backend schema
     // each body: { id, name, point_ids: [ "pt_1", "pt_2", ... ], closed: bool }
     // state.bars: [{ id, a, b }]
-
-    function rebuildBarsFromBodies() {
-        state.bars = [];
-        let counter = 1;
-
-        state.bodies.forEach((body) => {
-            const ids = Array.isArray(body.point_ids) ? body.point_ids : [];
-            if (ids.length < 2) return;
-
-            for (let i = 0; i < ids.length - 1; i++) {
-                state.bars.push({
-                    id: `bar_${counter++}`,
-                    a: ids[i],
-                    b: ids[i + 1],
-                    bodyId: body.id,
-                    bodyType: body.type || null,
-                });
-            }
-
-            if (body.closed && ids.length > 2) {
-                state.bars.push({
-                    id: `bar_${counter++}`,
-                    a: ids[ids.length - 1],
-                    b: ids[0],
-                    bodyId: body.id,
-                    bodyType: body.type || null,
-                });
-            }
-        });
-    }
+    const rebuildBarsFromBodies = () => BV.rebuildBarsFromBodies(state);
 
 
     // ---- Measurement system (v1: rear_center only) ----
@@ -122,18 +93,7 @@ export function initBikePointsViewer(container, config = {}) {
         activeScaleKey: null,     // "rear_center" later "wheelbase" etc.
     };
 
-    function getPtsByType() {
-        const out = {};
-        for (const p of state.points) {
-            out[p.type] = p;
-
-            // Optional aliases (VERY helpful long-term)
-            if (p.type === "bottom_bracket") out.bb = p;
-            if (p.type === "rear_axle") out.rear_axle = p;
-            if (p.type === "front_axle") out.front_axle = p;
-        }
-        return out;
-    }
+    const getPtsByType = () => BV.getPtsByType(state.points);
 
 
     // let rearMeasureAnim = {
@@ -144,95 +104,6 @@ export function initBikePointsViewer(container, config = {}) {
     //     duration: 220,   // ms
     // };
 
-
-    const MEASURE_DEFS = {
-        rear_center: {
-            id: "rear_center",
-            label: "Rear Center",
-            units: "mm",
-            type: "input",
-            scaleCandidate: true,
-            anchors: { aType: "bb", bType: "rear_axle" },
-            place: {
-                orientation: "horizontal",
-                normalOffsetPx: -50,
-                pillOffsetPx: 25,
-            },
-            style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 20 },
-            ticks: {
-                enabled: true,
-
-                // which end(s) get ticks
-                ends: "both",            // "both" | "a" | "b" | "none"
-
-                // tick direction relative to the measurement line (root-space +Y is “normal”)
-                side: "both",            // "both" | "pos" | "neg"
-                lengthPosPx: 25,          // length toward +normal
-                lengthNegPx: 50,          // length toward -normal
-
-                thicknessPx: 3,
-                offsetPx: 0,             // shifts the tick center along normal (rarely needed)
-            },
-        },
-
-        front_center: {
-            id: "front_center",
-            label: "Front Center",
-            units: "mm",
-            type: "input",
-            scaleCandidate: true,
-            anchors: { aType: "bb", bType: "front_axle" },
-            place: {
-                orientation: "horizontal",
-                normalOffsetPx: 50,
-                pillOffsetPx: -25,
-            },
-            style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 20 },
-            ticks: {
-                enabled: true,
-
-                // which end(s) get ticks
-                ends: "both",            // "both" | "a" | "b" | "none"
-
-                // tick direction relative to the measurement line (root-space +Y is “normal”)
-                side: "both",            // "both" | "pos" | "neg"
-                lengthPosPx: 50,          // length toward +normal
-                lengthNegPx: 25,          // length toward -normal
-
-                thicknessPx: 3,
-                offsetPx: 0,             // shifts the tick center along normal (rarely needed)
-            },
-        },
-
-        wheelbase: {
-            id: "wheelbase",
-            label: "Wheelbase",
-            units: "mm",
-            type: "input",
-            scaleCandidate: true,
-            anchors: { aType: "rear_axle", bType: "front_axle" },
-            place: {
-                orientation: "horizontal",   // wheelbase is usually horizontal span
-                normalOffsetPx: 125,         // push it further away so it doesn’t clash with RC
-                pillOffsetPx: -25,
-            },
-            style: { headW: 10, headH: 14, shaftThickness: 3, minSpanPx: 40 },
-            ticks: {
-                enabled: true,
-
-                // which end(s) get ticks
-                ends: "both",            // "both" | "a" | "b" | "none"
-
-                // tick direction relative to the measurement line (root-space +Y is “normal”)
-                side: "both",            // "both" | "pos" | "neg"
-                lengthPosPx: 100,          // length toward +normal
-                lengthNegPx: 100,          // length toward -normal
-
-                thicknessPx: 3,
-                offsetPx: 50,             // shifts the tick center along normal (rarely needed)
-            },
-        },
-    };
 
     const measurements = BV.createMeasurements({
         BV,
@@ -245,9 +116,9 @@ export function initBikePointsViewer(container, config = {}) {
         setDebug,
         invalidate,
         drawAll,
-        MEASURE_DEFS,
     });
     const {
+        measureDefs,
         measurementDom,
         measurementValues,
         getActiveScaleMeasurementId,
@@ -256,157 +127,17 @@ export function initBikePointsViewer(container, config = {}) {
         updateMeasurementsOverlay,
     } = measurements;
 
-    // === Shock stroke input box (HTML overlay) ===
-    const shockStrokeInput = document.createElement("input");
-    shockStrokeInput.type = "text";  // ⬅️ text = no number arrows
-    shockStrokeInput.id = "shock-stroke-input";
-    shockStrokeInput.placeholder = "Stroke [mm]";
-
-    // --- Styling for a short pill box ---
-    Object.assign(shockStrokeInput.style, {
-        position: "absolute",
-        zIndex: 50,
-        display: "none",
-        // Layout
-        padding: "3px 8px",
-        minWidth: "80px",           // ⬅️ narrower
-        textAlign: "center",
-        whiteSpace: "nowrap",
-        // Visuals
-        background: cssVar("--text-dark"),
-        border: "0px",
-        color: cssVar("--text-light"),
-        fontSize: "12px",
-        lineHeight: "1.2",
-        borderRadius: "999px",
-        // simple pill, no arrow clipPath
-        // clipPath removed
-        // transition: "left 0.18s ease, top 0.18s ease",
-        pointerEvents: "auto",
+    const shockUi = BV.createShockStrokeInput({
+        BV,
+        containerEl,
+        cssVar,
+        bikeId,
+        accessToken,
+        state,
+        invalidate,
+        setDebug,
     });
-    // Optional nicer focus ring
-    shockStrokeInput.addEventListener("focus", () => {
-        shockStrokeInput.style.boxShadow =
-            "0 0 0 1px var(--accent), 0 0 10px rgba(0, 229, 255, 0.6)";
-    });
-    shockStrokeInput.addEventListener("blur", () => {
-        shockStrokeInput.style.boxShadow = "none";
-    });
-    containerEl.appendChild(shockStrokeInput);
-    shockStrokeInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            shockStrokeInput.blur();   // 🔥 triggers the save
-        }
-    });
-
-    // -------------------------------
-    // Numeric-only + " mm" suffix UX
-    // -------------------------------
-    let lastValidShockStroke = "";                 // keep ONE variable name
-    const STROKE_NUMERIC_REGEX = /^\d*\.?\d*$/;
-
-    // Typing (numbers only)
-    shockStrokeInput.addEventListener("input", (e) => {
-        let raw = String(e.target.value || "").replace(/mm/i, "").trim();
-
-        if (raw === "") {
-            lastValidShockStroke = "";
-            return;
-        }
-        if (STROKE_NUMERIC_REGEX.test(raw)) {
-            lastValidShockStroke = raw;
-            return;
-        }
-        // revert
-        e.target.value = lastValidShockStroke;
-    });
-
-    // Strip units on focus
-    shockStrokeInput.addEventListener("focus", (e) => {
-        const raw = String(e.target.value || "").replace(/mm/i, "").trim();
-        e.target.value = raw;
-    });
-
-    // Commit on blur
-    shockStrokeInput.addEventListener("blur", async (e) => {
-        let raw = String(e.target.value || "").replace(/mm/i, "").trim();
-
-        // empty clears
-        if (raw === "") {
-            lastValidShockStroke = "";
-            e.target.value = "";
-
-            const shockBody = (state.bodies || []).find((b) => b.type === "shock");
-            if (shockBody) shockBody.stroke = null;
-
-            invalidate();
-            return;
-        }
-
-        const val = Number.parseFloat(raw);
-        if (!Number.isFinite(val) || val <= 0) {
-            lastValidShockStroke = "";
-            e.target.value = "";
-            setDebug("Shock stroke invalid; cleared");
-
-            const shockBody = (state.bodies || []).find((b) => b.type === "shock");
-            if (shockBody) shockBody.stroke = null;
-
-            invalidate();
-            return;
-        }
-
-        // normalize + suffix
-        const norm = String(val);
-        lastValidShockStroke = norm;
-        e.target.value = norm + " mm";
-
-        // 1) update local model immediately
-        const shockBody = (state.bodies || []).find((b) => b.type === "shock");
-        if (shockBody) shockBody.stroke = val;
-
-        invalidate(); // instant visual update
-
-        // 2) save to backend (via BV wrapper)
-        try {
-            if (!bikeId) {
-                console.warn("[BikeViewer] No bikeId; skipping stroke save");
-                return;
-            }
-
-            const payload = {
-                bodies: (state.bodies || []).map((b) => ({
-                    id: b.id,
-                    name: b.name ?? null,
-                    point_ids: Array.isArray(b.point_ids) ? b.point_ids : [],
-                    closed: !!b.closed,
-                    type: b.type || null,
-                    length0: typeof b.length0 === "number" ? b.length0 : null,
-                    stroke: b.type === "shock" ? (b.stroke ?? null) : (typeof b.stroke === "number" ? b.stroke : null),
-                })),
-            };
-
-            const res = await BV.putBodies({
-                containerEl,     // IMPORTANT: use containerEl consistently everywhere
-                bikeId,
-                accessToken,
-                payload,
-            });
-
-            const text = await res.text();
-            if (!res.ok) {
-                console.warn("[BikeViewer] stroke PUT failed:", res.status, text);
-                setDebug(`Failed to save stroke (${res.status})`);
-                return;
-            }
-
-            setDebug("Shock stroke saved ✔");
-        } catch (err) {
-            console.error("[BikeViewer] stroke PUT error:", err);
-            setDebug("Error saving stroke (see console)");
-        }
-    });
+    const { shockStrokeInput, setLastValidShockStroke } = shockUi;
 
     // function imageDxDyToMm(dxImg, dyImg) {
     //     const s = viewer?.scale_mm_per_px;
@@ -489,16 +220,8 @@ export function initBikePointsViewer(container, config = {}) {
     }
 
     // After you’ve defined `bars` and `points` somewhere above invalidate
-    function findShockBody() {
-        if (!Array.isArray(state.bodies)) return null;
-        return state.bodies.find((body) => body.type === "shock") || null;
-    }
-
-    function findShockBar() {
-        const shockBody = findShockBody();
-        if (!shockBody || !Array.isArray(state.bars)) return null;
-        return state.bars.find((bar) => bar.bodyId === shockBody.id) || null;
-    }
+    const findShockBody = () => BV.findShockBody(state.bodies);
+    const findShockBar = () => BV.findShockBar(state.bodies, state.bars);
 
     const actions = BV.createActions({
         state,
@@ -531,75 +254,15 @@ export function initBikePointsViewer(container, config = {}) {
     }
 
 
-    function updateShockStrokePill(pointById) {
-        const shockBar = findShockBar();
-        if (!shockBar) {
-            shockStrokeInput.style.display = "none";
-            return;
-        }
-
-        const p1 = pointById.get(shockBar.a);
-        const p2 = pointById.get(shockBar.b);
-        if (!p1 || !p2) {
-            shockStrokeInput.style.display = "none";
-            return;
-        }
-
-        // helper: image -> CSS
-        const imageToCss = (xImg, yImg) => ({
-            x: view.tx + view.scale * xImg,
-            y: view.ty + view.scale * yImg,
-        });
-
-        // Default anchor = midpoint
-        let ax = (p1.x + p2.x) / 2;
-        let ay = (p1.y + p2.y) / 2;
-
-        // If stroke known + scale known, anchor at stroke marker instead
-        const shockBody = (state.bodies || []).find((b) => b.type === "shock");
-        const strokeMm =
-            shockBody && typeof shockBody.stroke === "number" && shockBody.stroke > 0
-                ? shockBody.stroke
-                : null;
-
-        if (strokeMm) {
-            const scaleMmPerPx = viewer?.scale_mm_per_px;
-            if (scaleMmPerPx && scaleMmPerPx > 0) {
-                const strokeImgDist = strokeMm / scaleMmPerPx;
-
-                // Decide fixed vs free eye
-                let fixedPt = p1, freePt = p2;
-                if (p1.type === "fixed" && p2.type !== "fixed") { fixedPt = p1; freePt = p2; }
-                else if (p2.type === "fixed" && p1.type !== "fixed") { fixedPt = p2; freePt = p1; }
-                else if (p1.type === "free" && p2.type !== "free") { freePt = p1; fixedPt = p2; }
-                else if (p2.type === "free" && p1.type !== "free") { freePt = p2; fixedPt = p1; }
-
-                const fx = fixedPt.x - freePt.x;
-                const fy = fixedPt.y - freePt.y;
-                const Lff = Math.hypot(fx, fy) || 1.0;
-                const ufx = fx / Lff;
-                const ufy = fy / Lff;
-
-                const strokeClamped = Math.min(strokeImgDist, Lff);
-                ax = freePt.x + ufx * strokeClamped;
-                ay = freePt.y + ufy * strokeClamped;
-            } else {
-                setDebug("⚠ Set Rear Centre first — cannot display stroke without scale.");
-            }
-        }
-
-        const { x: axCss, y: ayCss } = imageToCss(ax, ay);
-
-        const pillWidthCss = 90;
-        const pillHeightCss = 24;
-        const offsetRightCss = 12;
-
-        shockStrokeInput.style.display = "block";
-        shockStrokeInput.style.left = `${axCss + offsetRightCss}px`;
-        shockStrokeInput.style.top = `${ayCss - pillHeightCss / 2}px`;
-        shockStrokeInput.style.width = `${pillWidthCss}px`;
-        shockStrokeInput.style.height = `${pillHeightCss}px`;
-    }
+    const updateShockStrokePill = (pointById) => BV.updateShockStrokePill({
+        pointById,
+        findShockBar,
+        shockStrokeInput,
+        view,
+        state,
+        viewer,
+        setDebug,
+    });
 
     function drawAll() {
         BV.renderBikeViewer(state, {
@@ -615,7 +278,7 @@ export function initBikePointsViewer(container, config = {}) {
             updateMeasurementsOverlay,
             measurement: {
                 containerEl,
-                MEASURE_DEFS,
+                measureDefs,
                 measurementDom,
                 activeScaleMeasurementId: getActiveScaleMeasurementId(),
                 measurementValues,
@@ -644,45 +307,27 @@ export function initBikePointsViewer(container, config = {}) {
     const recomputeNextBodyIdFromBodies = () => BV.recomputeNextBodyIdFromBodies(state);
 
     function finalizeConnectChainAndSave() {
-        if (!state.connectChain.length) {
+        const action = BV.finalizeConnectChain(state);
+        if (action === "empty") {
             setDebug("Connect chain empty, nothing to save");
             return;
         }
-        if (state.connectChain.length < 2) {
-            state.connectChain = [];
+        if (action === "discard") {
             rebuildBarsFromBodies();
             invalidate("rebuilt bars after finalising connect chain and save");
             return;
         }
 
-        // Use the same logic as everywhere else:
-        createBodyFromChain(state.activeLinkType);
+        if (action === "create") {
+            // Use the same logic as everywhere else:
+            createBodyFromChain(state.activeLinkType);
+        }
     }
 
     function createBodyFromChain(linkType) {
-        if (!state.connectChain.length) return;
+        const body = BV.createBodyFromChain(state, linkType);
+        if (!body) return;
 
-        if (state.connectChain.length < 2) {
-            state.connectChain = [];
-            rebuildBarsFromBodies();
-            invalidate("Bars not rebuilt with no second point");
-            return;
-        }
-
-        const body = {
-            id: `body_${state.nextBodyId++}`,
-            name: null,
-            point_ids: state.connectChain.slice(),
-            closed: false,           // open linkage by default
-            type: (linkType === "shock" ? "shock" : "bar"),
-        };
-        if (state.bodies.some(b => b.id === body.id)) {
-            // extremely rare now, but prevents bad writes
-            body.id = `body_${state.nextBodyId++}`;
-        }
-        state.bodies.push(body);
-
-        state.connectChain = [];
         rebuildBarsFromBodies();
         invalidate(
             `bars rebuilt Body ${body.id} [${body.type || "link"}] created with ${body.point_ids.length} points`
