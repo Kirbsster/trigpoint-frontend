@@ -41,9 +41,15 @@ def bikes_page() -> rx.Component:
             width="100%",
         )
 
+        hero_src = rx.cond(
+            bike.get("hero_thumb_url"),
+            bike.get("hero_thumb_url"),
+            bike.get("hero_url", ""),
+        )
+
         row_with_image = rx.hstack(
             rx.image(
-                src=bike.get("hero_url", ""),
+                src=hero_src,
                 width="140px",
                 height="140px",
                 object_fit="cover",
@@ -56,7 +62,7 @@ def bikes_page() -> rx.Component:
         )
 
         content = rx.cond(
-            bike.get("hero_url") != None,
+            hero_src,
             row_with_image,
             details,
         )

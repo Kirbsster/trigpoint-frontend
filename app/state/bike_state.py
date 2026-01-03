@@ -162,7 +162,15 @@ class BikeState(rx.State):
                 if not (200 <= resp.status_code < 300):
                     self.message = f"Bike added, but hero image upload failed (status {resp.status_code})."
                 else:
-                    self.message = "Bike and hero image added."
+                    warning = None
+                    try:
+                        warning = (resp.json() or {}).get("warning")
+                    except Exception:
+                        warning = None
+                    if warning:
+                        self.message = f"Bike added. {warning}"
+                    else:
+                        self.message = "Bike and hero image added."
 
             except Exception as e:
                 self.message = f"Bike added, but image upload failed: {e}"
@@ -218,6 +226,8 @@ class BikeState(rx.State):
                 hero_id = b.get("hero_media_id")
                 if hero_id and not b.get("hero_url"):
                     b["hero_url"] = f"{BACKEND_ORIGIN}/media/{hero_id}"
+                if b.get("hero_url") and not b.get("hero_thumb_url"):
+                    b["hero_thumb_url"] = b["hero_url"]
             self.bikes = data
             self.has_bikes = len(data) > 0
         else:
@@ -274,6 +284,8 @@ class BikeState(rx.State):
             hero_id = data.get("hero_media_id")
             if hero_id and not data.get("hero_url"):
                 data["hero_url"] = f"{BACKEND_ORIGIN}/media/{hero_id}"
+            if data.get("hero_url") and not data.get("hero_thumb_url"):
+                data["hero_thumb_url"] = data["hero_url"]
             self.current_bike = data
         else:
             detail = data.get("detail") if isinstance(data, dict) else None
