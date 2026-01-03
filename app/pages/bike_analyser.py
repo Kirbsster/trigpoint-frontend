@@ -23,6 +23,10 @@ LINK_TYPES = [
     ("bar",  "Rigid Link", "link"),
     ("shock","Shock Link", "activity"),
 ]
+PERSPECTIVE_TOOLS = [
+    ("perspective", "Perspective Fix", "crop"),
+    ("perspective_reset", "Reset Fix", "rotate-ccw"),
+]
 
 def point_type_panel() -> rx.Component:
     """Right-hand floating toolbar: point type buttons + link-mode button."""
@@ -187,6 +191,79 @@ def point_type_panel() -> rx.Component:
                     }})();
                     """
                 ),
+            )
+        )
+
+    buttons.append(
+        rx.box(
+            width="40px",
+            height="2.5px",
+            bg="var(--text-dark)",
+            margin_y="6px",
+            opacity="0.5",
+        )
+    )
+
+    for type_key, label, icon_spec in PERSPECTIVE_TOOLS:
+        icon = rx.icon(
+            icon_spec,
+            size=28,
+            class_name="perspective-icon",
+            color="var(--text-dark)",
+        )
+
+        if type_key == "perspective":
+            click_script = """
+                (() => {
+                    const c = document.getElementById('bike-viewer-container');
+                    const bv = c?.bikeViewer;
+                    if (!bv) return;
+                    bv.setPerspectiveMode('toggle');
+                })();
+            """
+        else:
+            click_script = """
+                (() => {
+                    const c = document.getElementById('bike-viewer-container');
+                    const bv = c?.bikeViewer;
+                    if (!bv) return;
+                    bv.resetPerspective();
+                })();
+            """
+
+        buttons.append(
+            rx.button(
+                rx.hstack(
+                    icon,
+                    rx.spacer(),
+                    rx.text(
+                        label,
+                        color="var(--text-light)",
+                        class_name="perspective-label",
+                        white_space="nowrap",
+                        overflow="hidden",
+                        max_width="0px",
+                    ),
+                    spacing="0",
+                    align="center",
+                ),
+                variant="solid",
+                bg="var(--bg)",
+                width="40px",
+                height="40px",
+                padding="0",
+                border_radius="999px",
+                cursor="pointer",
+                transition=(
+                    "width 0.18s ease, "
+                    "background 0.15s ease, "
+                    "box-shadow 0.15s ease"
+                ),
+                class_name="perspective-btn",
+                pointer_events="auto",
+                _hover={"box_shadow": "0 0 4px var(--text-dark)"},
+                _active={"transform": "scale(0.97)"},
+                on_click=rx.call_script(click_script),
             )
         )
 

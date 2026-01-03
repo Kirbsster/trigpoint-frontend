@@ -18,6 +18,42 @@ export function createBackendIO(deps) {
         setLastValidShockStroke,
     } = deps;
 
+    function loadPerspectiveFromBikeDoc(bikeDoc) {
+        const pts = Array.isArray(bikeDoc?.hero_perspective_points)
+            ? bikeDoc.hero_perspective_points
+            : [];
+        state.perspective.points = pts.map((p, idx) => ({
+            id: p.id ? String(p.id) : `persp_${idx + 1}`,
+            type: p.type || "rear",
+            x: Number(p.x),
+            y: Number(p.y),
+        }));
+
+        let maxIdNum = 0;
+        for (const p of state.perspective.points) {
+            const m = String(p.id).match(/persp_(\d+)/);
+            if (!m) continue;
+            const n = parseInt(m[1], 10);
+            if (!Number.isNaN(n)) maxIdNum = Math.max(maxIdNum, n);
+        }
+        state.perspective.nextId = maxIdNum + 1;
+
+        const rearCount = state.perspective.points.filter((p) => p.type === "rear").length;
+        const frontCount = state.perspective.points.filter((p) => p.type === "front").length;
+        if (rearCount < 4) {
+            state.perspective.stage = "rear";
+        } else if (frontCount < 4) {
+            state.perspective.stage = "front";
+        } else {
+            state.perspective.stage = "done";
+        }
+
+        state.perspective.active = false;
+        state.perspective.preview = false;
+        state.perspective.selectedPointId = null;
+        state.perspective.draggingPointId = null;
+    }
+
     async function loadInitialPoints() {
         if (!bikeId) {
             console.warn("[BikeViewer] loadInitialPoints: missing bikeId");
@@ -39,6 +75,7 @@ export function createBackendIO(deps) {
 
             // hydrate measurements + scale from backend
             loadGeometryFromBikeDoc(data);
+            loadPerspectiveFromBikeDoc(data);
 
             // points
             const arr = Array.isArray(data.points) ? data.points : [];
@@ -239,11 +276,44 @@ export function createBackendIO(deps) {
         }
     }
 
+    async function savePerspectivePoints() {
+        if (!bikeId) {
+            setDebug("Cannot save perspective: missing bike id");
+            console.warn("[BikeViewer] savePerspective: missing bikeId");
+            return;
+        }
+
+        const payload = {
+            points: (state.perspective.points || []).map((p) => ({
+                id: p.id,
+                type: p.type,
+                x: p.x,
+                y: p.y,
+            })),
+        };
+
+        try {
+            const res = await BV.putHeroPerspective({
+                container: containerEl,
+                bikeId,
+                accessToken,
+                payload,
+            });
+            if (!res.ok) {
+                setDebug(`Perspective save failed (${res.status})`);
+            }
+        } catch (err) {
+            console.error("[BikeViewer] savePerspective error:", err);
+            setDebug("Perspective save error (see console)");
+        }
+    }
+
     return {
         loadInitialPoints,
         loadBodies,
         saveBodiesHelper,
         savePoints,
+        savePerspectivePoints,
     };
 }
 

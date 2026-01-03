@@ -85,6 +85,18 @@ BV.putGeometry = async function ({ container, bikeId, accessToken, payload }) {
     });
 };
 
+BV.putHeroPerspective = async function ({ container, bikeId, accessToken, payload }) {
+    const API_BASE = BV.getApiBase(container);
+    if (!API_BASE) throw new Error("BACKEND_ORIGIN missing");
+
+    return fetch(`${API_BASE}/bikes/${bikeId}/media/hero/perspective`, {
+        method: "PUT",
+        headers: BV.getAuthHeaders(accessToken),
+        credentials: "include",
+        body: JSON.stringify(payload),
+    });
+};
+
 console.log("[BikeViewer] api.js loaded");
 
 // Mark as ES module without exporting anything

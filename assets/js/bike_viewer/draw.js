@@ -10,6 +10,7 @@ export function render(state, deps) {
         cssVar,
         scaleMmPerPx,
         crosshair,
+        perspective,
         updateMeasurementsOverlay,
         measurement,
         updateShockStrokePill,
@@ -53,6 +54,7 @@ export function render(state, deps) {
     drawShockOverlay(ctx, view, cssVar, scaleMmPerPx, state.bodies, pointById, findShockBar);
     drawPointsLayer(ctx, view, cssVar, state.points, state.selectedPointId, state.connectMode, state.connectChain);
     drawWheelScaleCirclesLayer(ctx, view, scaleMmPerPx, state.points);
+    drawPerspectiveOverlay(ctx, view, perspective);
 
     // Screen-space overlays
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -73,8 +75,10 @@ export function render(state, deps) {
         updateShockStrokePill(pointById);
     }
     drawNudgeControlsForSelectedPoint(ctx, canvas, view, cssVar, state.selectedPointId, state.points, nudgeInnerRadius, nudgeOuterRadius);
+    drawPerspectiveNudgeControls(ctx, canvas, view, cssVar, perspective, nudgeInnerRadius, nudgeOuterRadius);
     drawSelectedBodyOverlay(ctx, canvas, view, state);
     drawCrosshairOverlay(ctx, canvas, cssVar, crosshair, state.activeType, dpr);
+    drawPerspectiveTextOverlay(ctx, canvas, perspective);
 }
 
 const BV = (window.BikeViewer ||= {});
@@ -294,6 +298,189 @@ function drawWheelScaleCirclesLayer(ctx, view, scaleMmPerPx, points) {
     ctx.restore();
 }
 
+function drawPerspectiveOverlay(ctx, view, perspective) {
+    if (!perspective) return;
+
+    ctx.save();
+    ctx.lineWidth = 3 / view.scale;
+    ctx.strokeStyle = "#ff00ff";
+    ctx.fillStyle = "#00d5ff";
+
+    const rearPts = (perspective.points || []).filter((pt) => pt.type === "rear");
+    const frontPts = (perspective.points || []).filter((pt) => pt.type === "front");
+    drawRimOverlay(ctx, view, rearPts);
+    drawRimOverlay(ctx, view, frontPts);
+    drawSelectedPerspectivePoint(ctx, view, perspective.points, perspective.selectedPointId);
+
+    ctx.restore();
+}
+
+function drawRimOverlay(ctx, view, pts) {
+    if (!Array.isArray(pts) || pts.length === 0) return;
+
+    for (const p of pts) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6 / view.scale, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    const ellipse = ellipseFromRimPoints(pts);
+    if (!ellipse) return;
+
+    ctx.beginPath();
+    ctx.ellipse(ellipse.cx, ellipse.cy, ellipse.rx, ellipse.ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawSelectedPerspectivePoint(ctx, view, points, selectedPointId) {
+    if (!selectedPointId) return;
+    const pt = (points || []).find((p) => p.id === selectedPointId);
+    if (!pt) return;
+
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 10 / view.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = "#00d5ff";
+    ctx.lineWidth = 2 / view.scale;
+    ctx.stroke();
+}
+
+function ellipseFromRimPoints(pts) {
+    if (pts.length < 4) return null;
+
+    let minY = pts[0];
+    let maxY = pts[0];
+    let minX = pts[0];
+    let maxX = pts[0];
+
+    for (const p of pts) {
+        if (p.y < minY.y) minY = p;
+        if (p.y > maxY.y) maxY = p;
+        if (p.x < minX.x) minX = p;
+        if (p.x > maxX.x) maxX = p;
+    }
+
+    const cx = (minX.x + maxX.x) / 2;
+    const cy = (minY.y + maxY.y) / 2;
+    const rx = Math.abs(maxX.x - minX.x) / 2;
+    const ry = Math.abs(maxY.y - minY.y) / 2;
+
+    if (!(rx > 1e-6 && ry > 1e-6)) return null;
+
+    return { cx, cy, rx, ry };
+}
+
+function drawPerspectiveNudgeControls(ctx, canvas, view, cssVar, perspective, nudgeInnerRadius, nudgeOuterRadius) {
+    if (!perspective || !perspective.selectedPointId) return;
+    const p = (perspective.points || []).find((pt) => pt.id === perspective.selectedPointId);
+    if (!p) return;
+    drawNudgeControlsForPoint(ctx, canvas, view, cssVar, p, nudgeInnerRadius, nudgeOuterRadius);
+}
+
+function drawNudgeControlsForPoint(ctx, canvas, view, cssVar, p, nudgeInnerRadius, nudgeOuterRadius) {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    const cx = (view.scale * p.x + view.tx) * dpr;
+    const cy = (view.scale * p.y + view.ty) * dpr;
+    const innerR = nudgeInnerRadius * dpr;
+    const outerR = nudgeOuterRadius * dpr;
+
+    ctx.save();
+
+    ctx.globalAlpha = 0.5;
+    function drawSector(startDeg, endDeg, fill) {
+        const start = (startDeg * Math.PI) / 180;
+        const end = (endDeg * Math.PI) / 180;
+        ctx.beginPath();
+        ctx.arc(cx, cy, outerR, start, end, false);
+        ctx.arc(cx, cy, innerR, end, start, true);
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+    }
+
+    drawSector(-135, -45, cssVar("--accent"));
+    drawSector(-45, 45, cssVar("--accent"));
+    drawSector(45, 135, cssVar("--accent"));
+    drawSector(135, 225, cssVar("--accent"));
+
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = cssVar("--accent");
+
+    function drawArrow(angleRad) {
+        const baseR = (innerR + outerR) / 2;
+        const ax = cx + baseR * Math.cos(angleRad);
+        const ay = cy + baseR * Math.sin(angleRad);
+        const size = 6 * dpr;
+        ctx.save();
+        ctx.translate(ax, ay);
+        ctx.rotate(angleRad);
+        ctx.beginPath();
+        ctx.moveTo(-size, -size);
+        ctx.lineTo(size, 0);
+        ctx.lineTo(-size, size);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    drawArrow((-90 * Math.PI) / 180);
+    drawArrow(0);
+    drawArrow((90 * Math.PI) / 180);
+    drawArrow((180 * Math.PI) / 180);
+
+    const deleteRadial = (nudgeOuterRadius + 18) * dpr;
+    const deleteAngle = (45 * Math.PI) / 180;
+    const delCx = cx + deleteRadial * Math.cos(deleteAngle);
+    const delCy = cy + deleteRadial * Math.sin(deleteAngle);
+    const delR = 15 * dpr;
+
+    ctx.beginPath();
+    ctx.arc(delCx, delCy + 5, delR, 0, Math.PI * 2);
+    ctx.fillStyle = cssVar("--accent-60");
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(delCx, delCy);
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = cssVar("--accent");
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(-9, -2);
+    ctx.lineTo(9, -2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(8, -2);
+    ctx.lineTo(6.7, 10.4);
+    ctx.quadraticCurveTo(6.6, 12, 5, 12);
+    ctx.lineTo(-5, 12);
+    ctx.quadraticCurveTo(-6.6, 12, -6.7, 10.4);
+    ctx.lineTo(-8, -2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-3, 3);
+    ctx.lineTo(-3, 9);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(3, 3);
+    ctx.lineTo(3, 9);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-2.5, -4);
+    ctx.lineTo(2.5, -4);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
 function drawCrosshairOverlay(ctx, canvas, cssVar, crosshair, activeType, dpr) {
     if (!(crosshair && crosshair.visible && activeType && crosshair.x != null && crosshair.y != null)) return;
 
@@ -318,125 +505,55 @@ function drawCrosshairOverlay(ctx, canvas, cssVar, crosshair, activeType, dpr) {
     ctx.restore();
 }
 
+function drawPerspectiveTextOverlay(ctx, canvas, perspective) {
+    if (!perspective) return;
+    const active = perspective.active;
+    const stage = perspective.stage;
+
+    if (!active && stage === "done") return;
+
+    const points = perspective.points || [];
+    const rearCount = points.filter((pt) => pt.type === "rear").length;
+    const frontCount = points.filter((pt) => pt.type === "front").length;
+
+    let msg = "Perspective: click rear rim N/E/S/W";
+    if (stage === "rear") {
+        msg = `Perspective: rear rim ${rearCount}/4`;
+    } else if (stage === "front") {
+        msg = `Perspective: front rim ${frontCount}/4`;
+    } else if (stage === "done") {
+        msg = "Perspective: points set";
+    }
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.font = "12px system-ui";
+
+    const pad = 6;
+    const metrics = ctx.measureText(msg);
+    const w = metrics.width + pad * 2;
+    const h = 20;
+    const x = 12;
+    const y = 12;
+
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff";
+    ctx.fillText(msg, x + pad, y + 14);
+    ctx.restore();
+}
+
 function drawNudgeControlsForSelectedPoint(ctx, canvas, view, cssVar, selectedPointId, points, nudgeInnerRadius, nudgeOuterRadius) {
     if (!selectedPointId) return;
     const p = (points || []).find((pt) => pt.id === selectedPointId);
     if (!p) return;
-
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-    // Image -> canvas device coords:
-    const cx = (view.scale * p.x + view.tx) * dpr;
-    const cy = (view.scale * p.y + view.ty) * dpr;
-    const innerR = nudgeInnerRadius * dpr;
-    const outerR = nudgeOuterRadius * dpr;
-
-    ctx.save();
-
-    // --- donut sectors ---
-    ctx.globalAlpha = 0.5;
-    function drawSector(startDeg, endDeg, fill) {
-        const start = (startDeg * Math.PI) / 180;
-        const end = (endDeg * Math.PI) / 180;
-        ctx.beginPath();
-        ctx.arc(cx, cy, outerR, start, end, false);
-        ctx.arc(cx, cy, innerR, end, start, true);
-        ctx.closePath();
-        ctx.fillStyle = fill;
-        ctx.fill();
-    }
-
-    // Up, Right, Down, Left
-    drawSector(-135, -45, cssVar("--accent"));
-    drawSector(-45, 45, cssVar("--accent"));
-    drawSector(45, 135, cssVar("--accent"));
-    drawSector(135, 225, cssVar("--accent"));
-
-    // --- arrows ---
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = cssVar("--accent");
-
-    function drawArrow(angleRad) {
-        const baseR = (innerR + outerR) / 2;
-        const ax = cx + baseR * Math.cos(angleRad);
-        const ay = cy + baseR * Math.sin(angleRad);
-        const size = 6 * dpr;
-        ctx.save();
-        ctx.translate(ax, ay);
-        ctx.rotate(angleRad);
-        ctx.beginPath();
-        ctx.moveTo(-size, -size);
-        ctx.lineTo(size, 0);
-        ctx.lineTo(-size, size);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-    }
-
-    drawArrow((-90 * Math.PI) / 180); // up
-    drawArrow(0);                      // right
-    drawArrow((90 * Math.PI) / 180);   // down
-    drawArrow((180 * Math.PI) / 180);  // left
-
-    // --- Delete icon pill at bottom-right of donut ---
-    const deleteRadial = (nudgeOuterRadius + 18) * dpr;  // distance from center
-    const deleteAngle = (45 * Math.PI) / 180;            // down-right in canvas coords
-    const delCx = cx + deleteRadial * Math.cos(deleteAngle);
-    const delCy = cy + deleteRadial * Math.sin(deleteAngle);
-    const delR = 15 * dpr;
-
-    // pill background
-    ctx.beginPath();
-    ctx.arc(delCx, delCy + 5, delR, 0, Math.PI * 2);
-    ctx.fillStyle = cssVar("--accent-60");
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Trash icon
-    ctx.save();
-    ctx.translate(delCx, delCy);
-    ctx.scale(dpr, dpr);          // scale for crispness
-    ctx.strokeStyle = cssVar("--accent");
-    ctx.lineWidth = 1.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    // Top line
-    ctx.beginPath();
-    ctx.moveTo(-9, -2);
-    ctx.lineTo(9, -2);
-    ctx.stroke();
-
-    // Bin outline
-    ctx.beginPath();
-    ctx.moveTo(8, -2);
-    ctx.lineTo(6.7, 10.4);
-    ctx.quadraticCurveTo(6.6, 12, 5, 12);
-    ctx.lineTo(-5, 12);
-    ctx.quadraticCurveTo(-6.6, 12, -6.7, 10.4);
-    ctx.lineTo(-8, -2);
-    ctx.stroke();
-
-    // Left vertical
-    ctx.beginPath();
-    ctx.moveTo(-3, 3);
-    ctx.lineTo(-3, 9);
-    ctx.stroke();
-
-    // Right vertical
-    ctx.beginPath();
-    ctx.moveTo(3, 3);
-    ctx.lineTo(3, 9);
-    ctx.stroke();
-
-    // Handle
-    ctx.beginPath();
-    ctx.moveTo(-2.5, -4);
-    ctx.lineTo(2.5, -4);
-    ctx.stroke();
-
-    ctx.restore();
+    drawNudgeControlsForPoint(ctx, canvas, view, cssVar, p, nudgeInnerRadius, nudgeOuterRadius);
 }
 
 function drawSelectedBodyOverlay(ctx, canvas, view, state) {

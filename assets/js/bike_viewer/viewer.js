@@ -196,6 +196,124 @@ export function initBikePointsViewer(container, config = {}) {
 
     const NUDGE_INNER_RADIUS = 32;
     const NUDGE_OUTER_RADIUS = 70;
+
+    function resetPerspectiveState() {
+        state.perspective.points = [];
+        state.perspective.nextId = 1;
+        state.perspective.stage = "rear";
+        state.perspective.active = true;
+        state.perspective.preview = false;
+        state.perspective.selectedPointId = null;
+        state.perspective.draggingPointId = null;
+    }
+
+    function clearPerspectiveState() {
+        state.perspective.points = [];
+        state.perspective.nextId = 1;
+        state.perspective.stage = "rear";
+        state.perspective.active = false;
+        state.perspective.preview = false;
+        state.perspective.selectedPointId = null;
+        state.perspective.draggingPointId = null;
+        setDebug("Perspective cleared");
+        invalidate("Perspective reset");
+        savePerspectiveNowIfPossible();
+    }
+
+    function updatePerspectiveStage() {
+        const p = state.perspective;
+        const rearCount = (p.points || []).filter((pt) => pt.type === "rear").length;
+        const frontCount = (p.points || []).filter((pt) => pt.type === "front").length;
+
+        if (rearCount < 4) {
+            p.stage = "rear";
+            return;
+        }
+        if (frontCount < 4) {
+            p.stage = "front";
+            return;
+        }
+        p.stage = "done";
+    }
+
+    function setPerspectiveMode(mode) {
+        const p = state.perspective;
+        const enable = mode === "toggle" ? !p.active : !!mode;
+        if (enable) {
+            if (p.stage === "done") {
+                resetPerspectiveState();
+            } else {
+                p.active = true;
+            }
+            setDebug("Perspective: click rear rim N/E/S/W");
+        } else {
+            p.active = false;
+            setDebug("Perspective: off");
+        }
+        invalidate("Perspective mode updated");
+    }
+
+    function handlePerspectiveClick(clientX, clientY) {
+        const p = state.perspective;
+        if (!p.active) return false;
+        if (p.stage !== "rear" && p.stage !== "front" && p.stage !== "done") return false;
+
+        const hit = BV.findNearestPointIdAtClient(clientX, clientY, {
+            state,
+            view,
+            clientToImage,
+            points: p.points,
+        });
+        if (hit) {
+            p.selectedPointId = hit;
+            p.draggingPointId = hit;
+            invalidate("Perspective point selected");
+            return true;
+        }
+
+        if (p.stage === "done") return true;
+
+        const targetGroup = p.stage === "rear" ? "rear" : "front";
+        const targetCount = (p.points || []).filter((pt) => pt.type === targetGroup).length;
+        if (targetCount >= 4) return true;
+
+        const newPoint = BV.placePointAtClient({
+            x: clientX,
+            y: clientY,
+            points: p.points,
+            type: targetGroup,
+            getNextId: () => p.nextId,
+            setNextId: (v) => {
+                p.nextId = v;
+            },
+            idPrefix: "persp_",
+            clientToImage,
+            invalidate,
+            setDebug,
+        });
+        if (!newPoint) return true;
+
+        const rearCount = (p.points || []).filter((pt) => pt.type === "rear").length;
+        const frontCount = (p.points || []).filter((pt) => pt.type === "front").length;
+        if (rearCount === 4 && p.stage === "rear") {
+            p.stage = "front";
+            setDebug("Rear rim set. Click front rim N/E/S/W");
+        } else if (frontCount === 4 && p.stage === "front") {
+            p.stage = "done";
+            p.active = false;
+            setDebug("Perspective points captured");
+        } else {
+            const count = targetGroup === "rear" ? rearCount : frontCount;
+            setDebug(`${p.stage} rim: ${count}/4`);
+        }
+
+        p.selectedPointId = newPoint.id;
+        p.draggingPointId = null;
+
+        invalidate("Perspective point added");
+        savePerspectiveNowIfPossible();
+        return true;
+    }
     // Hydrate measurement values and scale from backend geometry payload.
     function loadGeometryFromBikeDoc(bikeDoc) {
         const g = bikeDoc?.geometry || {};
@@ -238,6 +356,7 @@ export function initBikePointsViewer(container, config = {}) {
             cssVar,
             scaleMmPerPx: viewer?.scale_mm_per_px,
             crosshair,
+            perspective: state.perspective,
             updateMeasurementsOverlay,
             measurement: {
                 containerEl,
@@ -264,6 +383,16 @@ export function initBikePointsViewer(container, config = {}) {
             }
         } catch (err) {
             console.warn("[BikeViewer] autosave failed:", err);
+        }
+    }
+
+    function savePerspectiveNowIfPossible() {
+        try {
+            if (typeof savePerspectivePoints === "function") {
+                savePerspectivePoints();
+            }
+        } catch (err) {
+            console.warn("[BikeViewer] perspective save failed:", err);
         }
     }
 
@@ -323,7 +452,7 @@ export function initBikePointsViewer(container, config = {}) {
         shockStrokeInput,
         setLastValidShockStroke,
     });
-    const { loadInitialPoints, loadBodies, saveBodiesHelper, savePoints } = backendIO;
+    const { loadInitialPoints, loadBodies, saveBodiesHelper, savePoints, savePerspectivePoints } = backendIO;
 
     // Wire input handlers after dependencies are ready.
     BV.addPointerEvents({
@@ -341,12 +470,15 @@ export function initBikePointsViewer(container, config = {}) {
         updateLinkButtonHighlight,
         updateTypeButtonHighlight,
         saveNowIfPossible,
+        savePerspectiveNowIfPossible,
         zoomAtScreenPoint,
         clampPan,
         animatePanToCenter,
         NUDGE_INNER_RADIUS,
         NUDGE_OUTER_RADIUS,
         viewer,
+        handlePerspectiveClick,
+        updatePerspectiveStage,
     });
 
     BV.addKeyboardEvents({
@@ -619,6 +751,14 @@ export function initBikePointsViewer(container, config = {}) {
 
         async savePoints() {
             return savePoints();
+        },
+
+        setPerspectiveMode(mode) {
+            setPerspectiveMode(mode);
+        },
+
+        resetPerspective() {
+            clearPerspectiveState();
         },
     });
 

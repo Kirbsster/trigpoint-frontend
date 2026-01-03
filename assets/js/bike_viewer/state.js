@@ -29,6 +29,17 @@ export function makeDefaultState() {
         activeLinkType: null,
         selectedPointId: null,
         draggingPointId: null,
+
+        // perspective correction UI state
+        perspective: {
+            active: false,
+            stage: "rear", // rear | front | done
+            points: [],
+            nextId: 1,
+            preview: false,
+            selectedPointId: null,
+            draggingPointId: null,
+        },
     };
 }
 

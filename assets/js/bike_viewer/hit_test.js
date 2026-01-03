@@ -8,7 +8,8 @@ export function findNearestPointIdAtClient(clientX, clientY, deps) {
     const hitRadiusImg = screenRadiusPx / view.scale;
     const hitRadiusImg2 = hitRadiusImg * hitRadiusImg;
 
-    for (const p of state.points || []) {
+    const points = deps.points || state.points || [];
+    for (const p of points) {
         const dx = p.x - imgPt.x;
         const dy = p.y - imgPt.y;
         const d2 = dx * dx + dy * dy;
@@ -103,8 +104,10 @@ export function hitBodyAtClient(clientX, clientY, deps) {
 
 export function hitNudgeControlAtClient(clientX, clientY, deps) {
     const { state, view, canvas, nudgeInnerRadius, nudgeOuterRadius } = deps;
-    if (!state.selectedPointId) return null;
-    const p = state.points.find((pt) => pt.id === state.selectedPointId);
+    const selectedPointId = deps.selectedPointId || state.selectedPointId;
+    const points = deps.points || state.points || [];
+    if (!selectedPointId) return null;
+    const p = points.find((pt) => pt.id === selectedPointId);
     if (!p) return null;
 
     const rect = canvas.getBoundingClientRect();

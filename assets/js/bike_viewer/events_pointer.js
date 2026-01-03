@@ -15,12 +15,15 @@ export function addPointerEvents(deps) {
         updateLinkButtonHighlight,
         updateTypeButtonHighlight,
         saveNowIfPossible,
+        savePerspectiveNowIfPossible,
         zoomAtScreenPoint,
         clampPan,
         animatePanToCenter,
         NUDGE_INNER_RADIUS,
         NUDGE_OUTER_RADIUS,
         viewer,
+        handlePerspectiveClick,
+        updatePerspectiveStage,
     } = deps;
 
     const BV = (window.BikeViewer ||= {});
@@ -44,6 +47,7 @@ export function addPointerEvents(deps) {
         }
 
         const wasDragging = !!state.draggingPointId;
+        const wasPerspectiveDragging = !!state.perspective?.draggingPointId;
 
         if (e.pointerType === "touch") {
             touchPoints.delete(e.pointerId);
@@ -58,9 +62,15 @@ export function addPointerEvents(deps) {
         isPanning = false;
         panStart = null;
         state.draggingPointId = null;
+        if (state.perspective) {
+            state.perspective.draggingPointId = null;
+        }
 
         if (wasDragging) {
             saveNowIfPossible();
+        }
+        if (wasPerspectiveDragging && typeof savePerspectiveNowIfPossible === "function") {
+            savePerspectiveNowIfPossible();
         }
     }
 
@@ -81,6 +91,39 @@ export function addPointerEvents(deps) {
                 1
             )}, ${imgPt.y.toFixed(1)})`
         );
+
+        const perspectiveNudgeDir = BV.hitNudgeControlAtClient(e.clientX, e.clientY, {
+            state,
+            view,
+            canvas,
+            nudgeInnerRadius: NUDGE_INNER_RADIUS,
+            nudgeOuterRadius: NUDGE_OUTER_RADIUS,
+            points: state.perspective?.points || [],
+            selectedPointId: state.perspective?.selectedPointId || null,
+        });
+        if (perspectiveNudgeDir) {
+            BV.nudgePointById({
+                points: state.perspective.points,
+                selectedPointId: state.perspective.selectedPointId,
+                direction: perspectiveNudgeDir,
+                onDelete: () => {
+                    state.perspective.selectedPointId = null;
+                    state.perspective.draggingPointId = null;
+                    if (typeof updatePerspectiveStage === "function") {
+                        updatePerspectiveStage();
+                    }
+                },
+                invalidate,
+            });
+            if (typeof savePerspectiveNowIfPossible === "function") {
+                savePerspectiveNowIfPossible();
+            }
+            return;
+        }
+
+        if (handlePerspectiveClick && handlePerspectiveClick(e.clientX, e.clientY)) {
+            return;
+        }
 
         // 1) Nudge controls have highest priority
         const nudgeDir = BV.hitNudgeControlAtClient(e.clientX, e.clientY, {
@@ -456,6 +499,18 @@ export function addPointerEvents(deps) {
                 return;
             }
 
+            if (touchPoints.size === 1 && state.perspective?.draggingPointId) {
+                const p = state.perspective;
+                const pt = (p.points || []).find((pt) => pt.id === p.draggingPointId);
+                if (pt) {
+                    const imgPt = clientToImage(e.clientX, e.clientY);
+                    pt.x = imgPt.x;
+                    pt.y = imgPt.y;
+                    invalidate();
+                }
+                return;
+            }
+
             if (touchPoints.size === 1 && isPanning && panStart) {
                 const dx = e.clientX - panStart.x;
                 const dy = e.clientY - panStart.y;
@@ -474,6 +529,18 @@ export function addPointerEvents(deps) {
             if (p) {
                 p.x = imgPt.x;
                 p.y = imgPt.y;
+                invalidate();
+            }
+            return;
+        }
+
+        if (state.perspective?.draggingPointId) {
+            const p = state.perspective;
+            const pt = (p.points || []).find((pt) => pt.id === p.draggingPointId);
+            if (pt) {
+                const imgPt = clientToImage(e.clientX, e.clientY);
+                pt.x = imgPt.x;
+                pt.y = imgPt.y;
                 invalidate();
             }
             return;
